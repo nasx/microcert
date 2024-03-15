@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: microcert
+  namespace: microcert
+spec:
+  # host: microcert.apps.alice.lab.uc2.io
+  port:
+    targetPort: pywsgi
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  to:
+    kind: Service
+    name: microcert
+    weight: 100
+  wildcardPolicy: None

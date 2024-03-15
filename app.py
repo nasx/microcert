@@ -3,8 +3,11 @@ from flask import abort, Flask, jsonify, make_response, request
 from gevent.pywsgi import WSGIServer
 from json import dumps
 from jsonschema import validate
+from cluster import *
 from microcert import *
+from prometheus_client import Counter, generate_latest
 import argparse, jsonschema
+import sys
 
 app = Flask(__name__)
 
@@ -12,9 +15,13 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument('-c', '--ca-crt', required=True, help="Path to CA Certificate File")
 parser.add_argument('-k', '--ca-key', required=True, help="Path to CA Certificate Key File")
+parser.add_argument('-n', '--name', required=False, help="Cluster/Environment Name (used for Prometheus metrics)")
 parser.add_argument('-t', '--token', required=True, help="Path to Token File")
 
 args = parser.parse_args()
+
+cluster_name = get_cluster_name(args)
+cert_counter = Counter('certificate_requests', "Number of Certificates Requested", ['cluster'])
 
 ca_crt = load_certificate(args.ca_crt)
 ca_key = load_private_key(args.ca_key)
@@ -48,6 +55,10 @@ def validate_token():
     
     abort(make_response(jsonify(message="Unauthorized. Missing or invalid token."), 403))
 
+@app.route("/metrics", methods=['GET'])
+def metrics():
+    return generate_latest()
+
 @app.route("/api/version", methods=['GET'])
 def version():
     if validate_token():
@@ -57,6 +68,7 @@ def version():
 def certificate():
     if validate_token() and validate_certificate_request_payload(request.json):
         key_pair = create_certificate(ca_crt, ca_key, request.json)
+        cert_counter.labels(cluster=cluster_name).inc()
 
         return {
             "ca.crt": ca_crt.public_bytes(serialization.Encoding.PEM).decode(),

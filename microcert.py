@@ -16,7 +16,7 @@ def load_private_key(key_file):
     return load_pem_private_key(data, None)
 
 def create_certificate(ca_crt: Certificate, ca_key: Certificate, request_json):
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.UTC)
     new_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
 
     return new_key, x509.CertificateBuilder(

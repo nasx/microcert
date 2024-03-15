@@ -2,3 +2,5 @@ cryptography
 flask
 gevent
 jsonschema
+kubernetes
+prometheus_client
