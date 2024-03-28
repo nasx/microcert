@@ -9,3 +9,5 @@ RUN microdnf -y update && \
   pip3.11 install -U -r requirements.txt
 
 EXPOSE 5000
+
+CMD ["python3.11", "app.py", "-c", "/etc/microcert/config/ca.crt", "-k", "/etc/microcert/config/ca.key", "-t", "/etc/microcert/config/token"]
