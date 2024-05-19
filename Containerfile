@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+FROM registry-quay-quay-enterprise.apps.alice.lab.uc2.io/uc2/base-ubi9-minimal:latest
 
 COPY app.py cluster.py microcert.py requirements.txt .
 
