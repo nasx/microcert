@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: microcert
+  namespace: {{ .Values.microcert_namespace }}
+spec:
+  endpoints:
+  - interval: 5s
+    path: /metrics
+    port: pywsgi
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - microcert
+  selector:
+    matchLabels:
+      app: microcert

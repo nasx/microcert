@@ -1,0 +1,3 @@
+---
+microcert_image: quay.io/nasx/microcert:latest
+microcert_namespace: microcert
