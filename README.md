@@ -14,12 +14,14 @@ Microcert should use its own Certificate Authority. To start, generate a private
 
 ```command
 openssl genrsa -out ca.key 4096
+
 ```
 
 Then generate the CA certificate.
 
 ```command
 openssl req -key ca.key -new -x509 -days 7300 -sha256 -extensions v3_ca -out ca.crt
+
 ```
 
 Follow the prompts and leave `Common Name` and `Email Address` blank.
@@ -30,6 +32,7 @@ For authentication, a token is passed by the caller to Microcert's API using the
 
 ```command
 echo $RANDOM | md5sum > /path/to/token
+
 ```
 
 ### Create Python Virtual Environment
@@ -38,18 +41,21 @@ Create a Python virtual environment for the application.
 
 ```command
 python -m venv /path/to/virtual/environment
+
 ```
 
 Activate the virtual environment.
 
 ```command
 . /path/to/virtual/environment/bin/activate
+
 ```
 
 Install required Python dependences.
 
 ```command
 pip install -U -r requirements.txt
+
 ```
 
 ### Running Microcert
@@ -58,6 +64,7 @@ To run the Microcert application, pass the required `-c/--ca-crt`, `-k/--ca-key`
 
 ```command
 python app.py --ca-crt /path/to/ca.crt --ca-key /path/to/ca.key --token /path/to/token
+
 ```
 
 ## Using Microcert
@@ -75,9 +82,15 @@ The JSON object has the following schema:
         "locality_name": {"type": "string"},
         "organization_name": {"type": "string"},
         "organizational_unit_name": {"type": "string"},
-        "common_name": {"type": "string"}
+        "common_name": {"type": "string"},
+        "subject_alt_names": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Optional list of DNS names or IP addresses for Subject Alternative Name extension"
+        }
     }
 }
+
 ```
 
 After successfully invoking the API, a JSON object is returned with the CA used to sign the new certificate and the new certificate's TLS keypair. The return object has the following schema:
@@ -91,14 +104,23 @@ After successfully invoking the API, a JSON object is returned with the CA used 
         "tls.key": {"type": "string"}
     }
 }
+
 ```
 
-An example using curl to invoke the API is shown below:
+An example using curl to invoke the API is shown below. Note that `subject_alt_names` is optional; if omitted, the `common_name` is automatically used as a SAN.
 
 ```command
 curl \
   -H "Token: <static-token>" \
   -H "Content-Type: application/json" \
   -X POST \
-  -d '{"country_name":"US","state_or_provice_name":"Virginia","locality_name":"Northern Virginia","organization_name":"UC2 PKI","organizational_unit_name":"UC2 Compute Cloud","common_name":"testing.lab.uc2.io"}' \
+  -d '{
+    "country_name":"US",
+    "state_or_provice_name":"Virginia",
+    "locality_name":"Northern Virginia",
+    "organization_name":"UC2 PKI",
+    "organizational_unit_name":"UC2 Compute Cloud",
+    "common_name":"testing.lab.uc2.io",
+    "subject_alt_names": ["testing.lab.uc2.io", "www.testing.lab.uc2.io", "192.168.1.5"]
+  }' \
   http://localhost:5000/api/certificate
