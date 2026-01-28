@@ -1,5 +1,4 @@
 from kubernetes import client, config
-from pprint import pprint
 from argparse import Namespace
 import os, sys
 import string
@@ -7,7 +6,7 @@ import string
 def get_cluster_name(args: Namespace):
   if args.name is not None:
     if not all(c in (string.ascii_letters + string.digits + '_' + '-') for c in args.name):
-        sys.exit("-n/--name must contain only letters, numbers, '-' or '_'!")
+       sys.exit("-n/--name must contain only letters, numbers, '-' or '_'!")
     return args.name
 
   if "KUBECONFIG" in os.environ:

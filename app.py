@@ -6,8 +6,7 @@ from jsonschema import validate
 from cluster import *
 from microcert import *
 from prometheus_client import Counter, generate_latest
-import argparse, jsonschema
-import sys
+import argparse, jsonschema, secrets
 
 app = Flask(__name__)
 
@@ -26,7 +25,8 @@ cert_counter = Counter('certificate_requests', "Number of Certificates Requested
 ca_crt = load_certificate(args.ca_crt)
 ca_key = load_private_key(args.ca_key)
 
-token = open(args.token).read().replace('\n', '')
+with open(args.token) as f:
+    token = f.read().strip()
 
 def validate_certificate_request_payload(request_json):
     certificate_schema = {
@@ -37,7 +37,8 @@ def validate_certificate_request_payload(request_json):
             "locality_name": {"type": "string"},
             "organization_name": {"type": "string"},
             "organizational_unit_name": {"type": "string"},
-            "common_name": {"type": "string"}
+            "common_name": {"type": "string"},
+            "subject_alt_names": {"type": "array", "items": {"type": "string"}}
         }
     }
 
@@ -50,7 +51,8 @@ def validate_certificate_request_payload(request_json):
     return True
 
 def validate_token():
-    if token == request.headers.get('Token'):
+    # Constant-time comparison to prevent timing attacks
+    if secrets.compare_digest(token, request.headers.get('Token', '')):
         return True
     
     abort(make_response(jsonify(message="Unauthorized. Missing or invalid token."), 403))
