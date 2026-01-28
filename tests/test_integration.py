@@ -5,18 +5,25 @@ import subprocess
 import shutil
 import tempfile
 import sys
-from unittest.mock import patch, mock_open, MagicMock
+from unittest.mock import patch, MagicMock
 
 # --- CRITICAL FIX START ---
-# We must mock system arguments and file loaders BEFORE importing app.
-# This prevents app.py from crashing because it tries to parse args 
-# and load files immediately at the top level.
-with patch('sys.argv', ['app.py', '-c', 'dummy.crt', '-k', 'dummy.key', '-t', 'dummy_token']), \
+# 1. Create a real temporary file for the token to satisfy app.py's import
+#    This avoids mocking 'open' globally, which breaks prometheus_client
+init_token_file = tempfile.NamedTemporaryFile(delete=False, mode='w')
+init_token_file.write("dummy_token_value_for_import")
+init_token_file.close()
+
+# 2. Patch sys.argv to point to this real file
+#    We still mock load_certificate/key to avoid needing valid certs during import
+with patch('sys.argv', ['app.py', '-c', 'dummy.crt', '-k', 'dummy.key', '-t', init_token_file.name]), \
      patch('microcert.load_certificate', return_value=MagicMock()), \
      patch('microcert.load_private_key', return_value=MagicMock()), \
-     patch('builtins.open', mock_open(read_data="dummy_token_value")), \
      patch('cluster.get_cluster_name', return_value='test-cluster'):
     from app import app
+
+# 3. Clean up the temp file now that import is done
+os.unlink(init_token_file.name)
 # --- CRITICAL FIX END ---
 
 class TestMicrocertIntegration(unittest.TestCase):
