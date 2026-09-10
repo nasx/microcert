@@ -1,6 +1,6 @@
-cryptography
-flask
-gevent
-jsonschema
-kubernetes
-prometheus_client
+cryptography==42.0.5
+flask==3.0.3
+gevent==24.2.1
+jsonschema==4.21.1
+kubernetes==29.0.0
+prometheus_client==0.20.0

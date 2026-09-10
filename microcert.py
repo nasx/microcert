@@ -1,5 +1,4 @@
 from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
@@ -7,6 +6,12 @@ from cryptography.x509 import Certificate
 from cryptography.x509.oid import NameOID
 import datetime
 import ipaddress
+import re
+
+# cryptography's x509.DNSName performs no validation of its own, so this
+# guards against control characters, whitespace, and other garbage being
+# silently baked into an issued certificate's SAN extension.
+_VALID_DNS_NAME = re.compile(r'^[A-Za-z0-9_.*-]{1,253}$')
 
 def load_certificate(crt_file):
     data = open(crt_file, 'rb').read()
@@ -21,10 +26,11 @@ def create_certificate(ca_crt: Certificate, ca_key: Certificate, request_json):
     new_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
 
     # --- Backward Compatibility Logic ---
-    # 1. Fetch SANs if present, otherwise default to empty list.
-    alt_names_raw = request_json.get('subject_alt_names', [])
-    
-    # 2. Always include Common Name in SANs (modern standard), 
+    # 1. Fetch SANs if present, otherwise default to empty list. Copy it so
+    # we don't mutate the caller's request payload.
+    alt_names_raw = list(request_json.get('subject_alt_names', []))
+
+    # 2. Always include Common Name in SANs (modern standard),
     # but avoid duplication if the user already provided it in the SAN list.
     cn = request_json.get('common_name')
     if cn and cn not in alt_names_raw:
@@ -36,7 +42,9 @@ def create_certificate(ca_crt: Certificate, ca_key: Certificate, request_json):
             # 3. auto-detect IP vs DNS to prevent crashes
             ip_obj = ipaddress.ip_address(name)
             san_items.append(x509.IPAddress(ip_obj))
-        except ValueError:
+        except (ValueError, TypeError):
+            if not isinstance(name, str) or not _VALID_DNS_NAME.match(name):
+                raise ValueError(f"Invalid subject alternative name: {name!r}")
             san_items.append(x509.DNSName(name))
     
     # 4. Build the extension object only if we have items (we almost always will due to CN)
@@ -63,8 +71,4 @@ def create_certificate(ca_crt: Certificate, ca_key: Certificate, request_json):
     if san_items:
         builder = builder.add_extension(san_extension, critical=False)
 
-    return new_key, builder.sign(
-        ca_key,
-        hashes.SHA256(),
-        default_backend()
-    )
+    return new_key, builder.sign(ca_key, hashes.SHA256())
