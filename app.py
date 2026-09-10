@@ -1,3 +1,6 @@
+from gevent import monkey
+monkey.patch_all()
+
 from cryptography.hazmat.primitives import serialization
 from flask import abort, Flask, jsonify, make_response, request
 from gevent.pywsgi import WSGIServer
@@ -7,9 +10,11 @@ from cluster import *
 from microcert import *
 from prometheus_client import Counter, generate_latest
 import argparse, jsonschema
+import hmac
 import sys
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
 
 parser = argparse.ArgumentParser()
 
@@ -37,8 +42,21 @@ def validate_certificate_request_payload(request_json):
             "locality_name": {"type": "string"},
             "organization_name": {"type": "string"},
             "organizational_unit_name": {"type": "string"},
-            "common_name": {"type": "string"}
-        }
+            "common_name": {"type": "string"},
+            "subject_alt_names": {
+                "type": "array",
+                "items": {"type": "string", "maxLength": 253},
+                "maxItems": 25
+            }
+        },
+        "required": [
+            "country_name",
+            "state_or_provice_name",
+            "locality_name",
+            "organization_name",
+            "organizational_unit_name",
+            "common_name"
+        ]
     }
 
     try:
@@ -50,9 +68,9 @@ def validate_certificate_request_payload(request_json):
     return True
 
 def validate_token():
-    if token == request.headers.get('Token'):
+    if hmac.compare_digest(token, request.headers.get('Token') or ''):
         return True
-    
+
     abort(make_response(jsonify(message="Unauthorized. Missing or invalid token."), 403))
 
 @app.route("/metrics", methods=['GET'])
@@ -67,7 +85,11 @@ def version():
 @app.route("/api/certificate", methods=['POST'])
 def certificate():
     if validate_token() and validate_certificate_request_payload(request.json):
-        key_pair = create_certificate(ca_crt, ca_key, request.json)
+        try:
+            key_pair = create_certificate(ca_crt, ca_key, request.json)
+        except ValueError as err:
+            abort(make_response(jsonify(message=str(err)), 400))
+
         cert_counter.labels(cluster=cluster_name).inc()
 
         return {
